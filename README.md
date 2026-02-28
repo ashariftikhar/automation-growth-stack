@@ -211,6 +211,8 @@ Want to see something specific? [Open an issue →](https://github.com/asharifti
 
 ## 🤝 Contributing
 
+**👋 First time contributor?** Look for [issues labeled `good first issue`](https://github.com/ashariftikhar/automation-growth-stack/labels/good%20first%20issue)
+
 This repo grows with contributions. Here's how to add your own templates or improvements:
 
 1. **Fork the repo** — create your own copy
@@ -248,7 +250,7 @@ I build web applications, AI automation systems, and digital growth infrastructu
 
 <div align="center">
 
-[![Portfolio](https://img.shields.io/badge/🌐_Portfolio-0d1117?style=for-the-badge&logo=vercel&logoColor=58a6ff)](https://ashir-iftikhar.vercel.app/)
+[![Portfolio](https://img.shields.io/badge/🌐_Portfolio-0d1117?style=for-the-badge&logo=vercel&logoColor=58a6ff)](https://ashariftikhar.vercel.app/)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0a66c2?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/ashariftikharofficial)
 [![Email](https://img.shields.io/badge/Email-ea4335?style=for-the-badge&logo=gmail&logoColor=white)](mailto:officialashii72@gmail.com)
 [![GitHub](https://img.shields.io/badge/GitHub-161b22?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ashariftikhar)
