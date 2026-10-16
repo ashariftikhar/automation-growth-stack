@@ -1,0 +1,256 @@
+{
+  "name": "AI Receptionist Lead Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "receptionist-lead-intake",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook Lead Intake",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [180, 280],
+      "webhookId": "receptionist-lead-intake"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitize and normalize inbound webhook lead payload\nconst body = $input.item.json.body || $input.item.json;\n\nconst fullName = (body.name || body.caller_name || body.full_name || 'Valued Prospect').trim();\nconst email = (body.email || body.contact_email || '').trim().toLowerCase();\nconst phone = (body.phone || body.caller_phone || '').trim();\nconst company = (body.company || body.business_name || 'Independent').trim();\nconst requirements = (body.requirements || body.message || body.notes || 'Inquiry regarding growth automation').trim();\nconst budget = (body.budget || body.estimated_budget || 'Unspecified').trim();\n\n// Default booking time slot: next business day at 14:00 UTC if unspecified\nlet preferredTime = body.preferred_time || body.booking_slot;\nlet startTime = new Date();\nif (preferredTime && !isNaN(Date.parse(preferredTime))) {\n  startTime = new Date(preferredTime);\n} else {\n  startTime.setDate(startTime.getDate() + 1);\n  startTime.setUTCHours(14, 0, 0, 0);\n}\nconst endTime = new Date(startTime.getTime() + 45 * 60 * 1000); // 45-min consultation\n\nreturn {\n  json: {\n    lead_name: fullName,\n    email,\n    phone,\n    company,\n    requirements,\n    budget,\n    meeting_start_iso: startTime.toISOString(),\n    meeting_end_iso: endTime.toISOString(),\n    received_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "Normalize & Validate Intake",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 280]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "complete",
+        "model": "gpt-4o-mini",
+        "prompt": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "You are Ashflow's Senior Lead Qualification AI. Analyze the inbound prospect inquiry.\nReturn a strict JSON object with this exact schema:\n{\n  \"qualified\": boolean,\n  \"fit_score\": number (1 to 100),\n  \"tier\": \"Enterprise\" | \"Mid-Market\" | \"SMB\" | \"Disqualified\",\n  \"recommended_service\": string,\n  \"executive_summary\": string,\n  \"qualification_reasons\": string[]\n}\nCriteria for qualified: Demonstrates genuine business need for automation/workflows, provided plausible contact details, budget not strictly $0, and professional intent."
+            },
+            {
+              "role": "user",
+              "content": "=Lead Name: {{ $json.lead_name }}\nCompany: {{ $json.company }}\nEmail: {{ $json.email }}\nPhone: {{ $json.phone }}\nBudget: {{ $json.budget }}\nRequirements & Context:\n{{ $json.requirements }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000003",
+      "name": "OpenAI Qualify Lead",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1.4,
+      "position": [620, 280]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI assessment and merge with lead metadata\nconst rawMessage = $input.item.json.message?.content || '{}';\nconst intake = $('Normalize & Validate Intake').first().json;\n\nlet assessment = {};\ntry {\n  const cleanJson = rawMessage.replace(/```json/g, '').replace(/```/g, '').trim();\n  assessment = JSON.parse(cleanJson);\n} catch (err) {\n  assessment = {\n    qualified: true,\n    fit_score: 70,\n    tier: 'SMB',\n    recommended_service: 'General Automation Audit',\n    executive_summary: 'Auto-qualified due to parsing fallback.',\n    qualification_reasons: ['Valid contact format']\n  };\n}\n\nreturn {\n  json: {\n    ...intake,\n    qualified: Boolean(assessment.qualified && assessment.fit_score >= 50),\n    fit_score: assessment.fit_score || 50,\n    tier: assessment.tier || 'SMB',\n    recommended_service: assessment.recommended_service || 'Automation Strategy Audit',\n    executive_summary: assessment.executive_summary || 'Prospective growth automation inquiry',\n    qualification_reasons: assessment.qualification_reasons || []\n  }\n};"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000004",
+      "name": "Parse Qualification Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [840, 280]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.qualified }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000005",
+      "name": "Check Qualified Lead",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1060, 280]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list"
+        },
+        "start": "={{ $json.meeting_start_iso }}",
+        "end": "={{ $json.meeting_end_iso }}",
+        "additionalFields": {
+          "summary": "=Strategy Audit: {{ $json.lead_name }} ({{ $json.company }})",
+          "description": "=Ashflow Automation Strategy Consultation\n\nProspect: {{ $json.lead_name }}\nCompany: {{ $json.company }}\nEmail: {{ $json.email }}\nPhone: {{ $json.phone }}\nFit Score: {{ $json.fit_score }}/100 ({{ $json.tier }})\nRecommended Service: {{ $json.recommended_service }}\n\nExecutive Summary:\n{{ $json.executive_summary }}\n\nInquiry Notes:\n{{ $json.requirements }}",
+          "attendees": [
+            "={{ $json.email }}"
+          ]
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000006",
+      "name": "Book Google Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.2,
+      "position": [1300, 180]
+    },
+    {
+      "parameters": {
+        "channel": "=#leads-qualified",
+        "text": "=🚀 *New Qualified Lead Booked via AI Receptionist!*\n\n*Name:* {{ $json.lead_name }}\n*Company:* {{ $json.company }}\n*Email:* {{ $json.email }} | *Phone:* {{ $json.phone }}\n*Fit Score:* `{{ $json.fit_score }}/100` ({{ $json.tier }})\n*Solution:* {{ $json.recommended_service }}\n*Meeting Time:* `{{ $json.meeting_start_iso }}`\n*Calendar Event:* <{{ $json.htmlLink }}|View in Google Calendar>\n\n*Summary:* {{ $json.executive_summary }}",
+        "otherOptions": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000007",
+      "name": "Slack Alert - Qualified",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1520, 180]
+    },
+    {
+      "parameters": {
+        "channel": "=#leads-nurture",
+        "text": "=ℹ️ *Unqualified Lead Routed to Nurture Queue*\n\n*Name:* {{ $json.lead_name }}\n*Company:* {{ $json.company }}\n*Email:* {{ $json.email }}\n*Fit Score:* `{{ $json.fit_score }}/100` ({{ $json.tier }})\n*Reason:* {{ $json.qualification_reasons.join(', ') }}\n*Inquiry:* {{ $json.requirements }}",
+        "otherOptions": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000008",
+      "name": "Slack Alert - Nurture Lead",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1300, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"success\",\n  \"qualified\": true,\n  \"lead_name\": \"{{ $('Parse Qualification Result').first().json.lead_name }}\",\n  \"fit_score\": {{ $('Parse Qualification Result').first().json.fit_score }},\n  \"tier\": \"{{ $('Parse Qualification Result').first().json.tier }}\",\n  \"booking_status\": \"confirmed\",\n  \"calendar_event_id\": \"{{ $json.id }}\",\n  \"meeting_start\": \"{{ $('Parse Qualification Result').first().json.meeting_start_iso }}\",\n  \"message\": \"Consultation successfully scheduled! A calendar invitation has been sent to your email.\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000009",
+      "name": "Respond Webhook - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1740, 180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"queued\",\n  \"qualified\": false,\n  \"lead_name\": \"{{ $('Parse Qualification Result').first().json.lead_name }}\",\n  \"fit_score\": {{ $('Parse Qualification Result').first().json.fit_score }},\n  \"tier\": \"{{ $('Parse Qualification Result').first().json.tier }}\",\n  \"booking_status\": \"pending_review\",\n  \"message\": \"Thank you for contacting Ashflow. Our growth engineering team will review your inquiry and follow up within 1 business day.\"\n}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000010",
+      "name": "Respond Webhook - Queued",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1740, 420]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Lead Intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Validate Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Validate Intake": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Qualify Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Qualify Lead": {
+      "main": [
+        [
+          {
+            "node": "Parse Qualification Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Qualification Result": {
+      "main": [
+        [
+          {
+            "node": "Check Qualified Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Qualified Lead": {
+      "main": [
+        [
+          {
+            "node": "Book Google Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Alert - Nurture Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Book Google Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert - Qualified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert - Qualified": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert - Nurture Lead": {
+      "main": [
+        [
+          {
+            "node": "Respond Webhook - Queued",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

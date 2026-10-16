@@ -1,0 +1,32 @@
+{
+  "name": "automation-growth-stack",
+  "version": "1.0.0",
+  "description": "Production-grade n8n B2B growth automation suite by Ashflow",
+  "main": "scripts/validate-workflows.js",
+  "scripts": {
+    "validate": "node scripts/validate-workflows.js",
+    "test": "node scripts/validate-workflows.js"
+  },
+  "keywords": [
+    "n8n",
+    "automation",
+    "b2b-growth",
+    "lead-generation",
+    "crm-sync",
+    "turso",
+    "ai-receptionist",
+    "review-booster",
+    "google-maps-scraper",
+    "ashflow"
+  ],
+  "author": "Ashflow <contact@ashflow.site> (https://ashflow.site)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ashariftikhar/automation-growth-stack.git"
+  },
+  "homepage": "https://ashflow.site",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

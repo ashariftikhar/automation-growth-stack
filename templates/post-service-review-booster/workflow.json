@@ -1,0 +1,296 @@
+{
+  "name": "Post-Service Review Booster & Reputation Gatekeeper",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "service-completed",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000001",
+      "name": "Webhook Service Completed",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 240],
+      "webhookId": "service-completed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare customer review solicitation metadata\nconst body = $input.item.json.body || $input.item.json;\n\nconst customerName = (body.customer_name || body.name || 'Valued Customer').trim();\nconst email = (body.customer_email || body.email || '').trim().toLowerCase();\nconst phone = (body.customer_phone || body.phone || '').trim();\nconst serviceName = (body.service_name || 'your recent service').trim();\nconst technicianName = (body.technician_name || 'our team').trim();\nconst invoiceId = (body.invoice_id || 'INV-' + Date.now()).trim();\nconst googleReviewUrl = body.google_review_url || 'https://g.page/r/your-google-business-review/review';\nconst webhookBaseUrl = body.webhook_base_url || 'https://automations.ashflow.site/webhook/submit-customer-rating';\n\nreturn {\n  json: {\n    customer_name: customerName,\n    customer_email: email,\n    customer_phone: phone,\n    service_name: serviceName,\n    technician_name: technicianName,\n    invoice_id: invoiceId,\n    google_review_url: googleReviewUrl,\n    rating_url_5: `${webhookBaseUrl}?invoice_id=${encodeURIComponent(invoiceId)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(customerName)}&rating=5`,\n    rating_url_4: `${webhookBaseUrl}?invoice_id=${encodeURIComponent(invoiceId)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(customerName)}&rating=4`,\n    rating_url_3: `${webhookBaseUrl}?invoice_id=${encodeURIComponent(invoiceId)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(customerName)}&rating=3`,\n    rating_url_2: `${webhookBaseUrl}?invoice_id=${encodeURIComponent(invoiceId)}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(customerName)}&rating=2`,\n    dispatched_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000002",
+      "name": "Generate Review Links",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 240]
+    },
+    {
+      "parameters": {
+        "fromEmail": "feedback@ashflow.site",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "=How was your service with {{ $json.technician_name }}?",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #0F172A;\">Hi {{ $json.customer_name }},</h2>\n  <p>Thank you for choosing us for <strong>{{ $json.service_name }}</strong> today!</p>\n  <p>Our priority is ensuring you received 5-star quality service. How would you rate your overall experience with {{ $json.technician_name }}?</p>\n  <div style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{ $json.rating_url_5 }}\" style=\"text-decoration:none; font-size: 28px; margin: 0 5px;\">⭐⭐⭐⭐⭐</a><br/>\n    <div style=\"margin-top: 15px;\">\n      <a href=\"{{ $json.rating_url_5 }}\" style=\"display: inline-block; background-color: #2563EB; color: #fff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold;\">Exceptional (5 Stars)</a>\n      <a href=\"{{ $json.rating_url_3 }}\" style=\"display: inline-block; background-color: #F1F5F9; color: #475569; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-left: 10px;\">Could Be Better</a>\n    </div>\n  </div>\n  <p style=\"font-size: 13px; color: #64748B;\">Invoice Ref: {{ $json.invoice_id }} | Your direct feedback helps us continuously improve.</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000003",
+      "name": "Send Initial Review Request Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [600, 240]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"queued\",\n  \"invoice_id\": \"{{ $json.invoice_id }}\",\n  \"customer_email\": \"{{ $json.customer_email }}\",\n  \"message\": \"Post-service review prompt sent successfully.\"\n}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000004",
+      "name": "Respond Trigger Intake",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [820, 240]
+    },
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "submit-customer-rating",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000005",
+      "name": "Webhook Rating Submission",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [160, 520],
+      "webhookId": "submit-customer-rating"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract query parameters from 1-click rating link\nconst query = $input.item.json.query || $input.item.json;\n\nconst rating = parseInt(query.rating || '5', 10);\nconst invoiceId = (query.invoice_id || 'UNKNOWN').trim();\nconst customerName = (query.name || 'Valued Customer').trim();\nconst customerEmail = (query.email || '').trim().toLowerCase();\nconst feedback = (query.feedback || query.comments || '').trim();\nconst googleReviewUrl = query.google_review_url || 'https://g.page/r/your-google-business-review/review';\n\nreturn {\n  json: {\n    rating,\n    invoice_id: invoiceId,\n    customer_name: customerName,\n    customer_email: customerEmail,\n    feedback,\n    google_review_url: googleReviewUrl,\n    is_promoter: rating >= 4,\n    submitted_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000006",
+      "name": "Normalize Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [380, 520]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.rating }}",
+              "operation": "largerEqual",
+              "value2": 4
+            }
+          ]
+        }
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000007",
+      "name": "Rating >= 4 Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 520]
+    },
+    {
+      "parameters": {
+        "fromEmail": "executive@ashflow.site",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "=Thank you so much! Could you share your review on Google?",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #1E293B;\">Thank you, {{ $json.customer_name }}! ⭐</h2>\n  <p>We are thrilled to hear you had a great experience with our team.</p>\n  <p>As a growing business, online reviews mean the world to our technicians. Would you mind taking 30 seconds to paste your rating on our official Google Business page?</p>\n  <div style=\"text-align: center; margin: 30px 0;\">\n    <a href=\"{{ $json.google_review_url }}\" style=\"background-color: #16A34A; color: #ffffff; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;\">👉 Post Review on Google Maps</a>\n  </div>\n  <p>Thank you again for your loyalty!</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000008",
+      "name": "Send Google Review Booster Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [840, 440]
+    },
+    {
+      "parameters": {
+        "channel": "=#customer-love",
+        "text": "=🌟 *5-Star Customer Review Recorded!*\n\n*Customer:* {{ $json.customer_name }} (<{{ $json.customer_email }}>)\n*Rating:* `{{ $json.rating }}/5 Stars`\n*Invoice:* `{{ $json.invoice_id }}`\n*Status:* Routed to Google Maps Review page\n*Customer Feedback:* \"{{ $json.feedback || 'None provided' }}\"",
+        "otherOptions": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000009",
+      "name": "Slack Alert - Positive Review",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [1060, 440]
+    },
+    {
+      "parameters": {
+        "respondWith": "redirect",
+        "redirectUrl": "={{ $json.google_review_url }}"
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000010",
+      "name": "Redirect User to Google Maps",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1280, 440]
+    },
+    {
+      "parameters": {
+        "channel": "=#management-escalations",
+        "text": "=🚨 *URGENT: Low Rating Alert (< 4 Stars)*\n\n*Customer:* {{ $json.customer_name }}\n*Email:* {{ $json.customer_email }}\n*Rating:* `{{ $json.rating }}/5 Stars`\n*Invoice:* `{{ $json.invoice_id }}`\n*Customer Feedback:* \"{{ $json.feedback || 'No written text provided' }}\"\n\n*Action Required:* Service recovery call within 60 minutes.",
+        "otherOptions": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000011",
+      "name": "Alert Management Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [840, 640]
+    },
+    {
+      "parameters": {
+        "fromEmail": "management@ashflow.site",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "=A personal note from our management team regarding your service",
+        "html": "=<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;\">\n  <h2 style=\"color: #991B1B;\">We hear you, {{ $json.customer_name }}.</h2>\n  <p>We saw your rating for invoice #{{ $json.invoice_id }} and we take this very seriously.</p>\n  <p>Our executive operations manager has been personally notified. We want to understand what happened and how we can make this right immediately.</p>\n  <p>Our management team will be contacting you directly. You can also reply directly to this email at any time.</p>\n  <p>Warm regards,<br/><strong>Operations Leadership</strong><br/>Ashflow Partner Network</p>\n</body>\n</html>",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000012",
+      "name": "Send Apology Recovery Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1060, 640]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"status\": \"received\",\n  \"rating\": {{ $json.rating }},\n  \"message\": \"Thank you for your honesty. Our leadership team has received your feedback and will reach out promptly to resolve any issues.\"\n}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-0002-4000-8000-000000000013",
+      "name": "Respond Private Resolution",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1280, 640]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Service Completed": {
+      "main": [
+        [
+          {
+            "node": "Generate Review Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Review Links": {
+      "main": [
+        [
+          {
+            "node": "Send Initial Review Request Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Initial Review Request Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Trigger Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook Rating Submission": {
+      "main": [
+        [
+          {
+            "node": "Normalize Feedback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Feedback": {
+      "main": [
+        [
+          {
+            "node": "Rating >= 4 Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rating >= 4 Check": {
+      "main": [
+        [
+          {
+            "node": "Send Google Review Booster Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Alert Management Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Google Review Booster Email": {
+      "main": [
+        [
+          {
+            "node": "Slack Alert - Positive Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Alert - Positive Review": {
+      "main": [
+        [
+          {
+            "node": "Redirect User to Google Maps",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Management Slack": {
+      "main": [
+        [
+          {
+            "node": "Send Apology Recovery Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Apology Recovery Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Private Resolution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

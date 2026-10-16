@@ -1,157 +1,128 @@
 # 🗺️ Google Maps Email Scraper
 
-**Scrape business emails from Google Maps search results — no paid APIs required.**
+**Production-grade n8n workflow to extract B2B emails and domains directly from Google Maps search results — zero external API keys or recurring scraper fees required.**
 
-## What It Does
-
-This workflow searches Google Maps for any business category (dentists, lawyers, restaurants, etc.), extracts website URLs from the results, visits each site, scrapes email addresses, and saves them to a Google Sheet.
-
-**Workflow:**
-```
-Manual Trigger → Scrape Google Maps → Extract URLs → Filter Google URLs
-    → Remove Duplicates → Limit Results → Loop Over Items
-    → Scrape Each Site → Extract Emails → Filter Empties
-    → Remove Duplicates → Save to Google Sheets
-```
-
-## Use Cases
-
-- Lead generation for local businesses
-- Building outreach lists for marketing campaigns
-- Competitor research and analysis
-- Building contact databases for sales teams
-
-## Setup Time
-
-**~20 minutes**
-
-## Requirements
-
-| Tool | Purpose | Cost |
-|------|---------|------|
-| [n8n](https://n8n.io) | Workflow automation | Free (self-hosted) / $20/mo |
-| [Google Sheets](https://sheets.google.com) | Data storage | Free |
-
-## Setup Instructions
-
-### 1. Import the Workflow
-
-1. Open your n8n instance
-2. Click **Workflows** → **Import from File**
-3. Select `workflow.json` from this folder
-4. The workflow will appear in your n8n dashboard
-
-### 2. Configure Google Sheets
-
-1. Create a new Google Sheet with a column header named `emails`
-2. In n8n, click on the **Add to Sheet** node
-3. Click **Create New Credential** for Google Sheets OAuth2
-4. Follow the OAuth flow to connect your Google account
-5. Select your spreadsheet and sheet name
-6. Save the workflow
-
-### 3. Customize Your Search
-
-1. Click on the **Scrape Google Maps** node
-2. Change the URL to your target search:
-   ```
-   https://www.google.com/maps/search/[CITY]+[BUSINESS_TYPE]
-   ```
-   Examples:
-   - `https://www.google.com/maps/search/calgary+dentists`
-   - `https://www.google.com/maps/search/new+york+restaurants`
-   - `https://www.google.com/maps/search/london+lawyers`
-
-### 4. Adjust Limits (Optional)
-
-The **Limit** node is set to process 10 results by default. To scrape more:
-1. Click the **Limit** node
-2. Change `maxItems` to your desired number
-3. Note: Higher numbers = longer execution time
-
-### 5. Test the Workflow
-
-1. Click **Execute Workflow** or **Test workflow**
-2. Watch the nodes execute in sequence
-3. Check your Google Sheet for scraped emails
-4. Verify results and adjust as needed
-
-## How It Works
-
-1. **Scrape Google Maps** — Fetches HTML from Google Maps search results
-2. **Extract URLs** — Uses regex to pull all website URLs from the page
-3. **Filter Google URLs** — Removes Google-owned domains (schema.org, google.com, etc.)
-4. **Remove Duplicates** — Eliminates duplicate URLs
-5. **Limit** — Caps the number of sites to scrape (prevents long execution)
-6. **Loop Over Items** — Processes each website one at a time
-7. **Scrape Site** — Visits each business website and fetches HTML
-8. **Extract Emails** — Uses regex to find email addresses in the HTML
-9. **Filter Out Empties** — Removes results with no emails found
-10. **Remove Duplicates (2)** — Eliminates duplicate email addresses
-11. **Add to Sheet** — Appends emails to your Google Sheet
-
-## Customization Options
-
-### Change Output Destination
-
-Instead of Google Sheets, you can:
-- Replace the final node with **Airtable**, **Notion**, or **PostgreSQL**
-- Send results to **Slack** or **Email**
-- Save to a **CSV file** using the Write Binary File node
-
-### Add More Data Points
-
-Modify the **Extract Emails** node to also capture:
-- Phone numbers: `/\d{3}[-.]?\d{3}[-.]?\d{4}/g`
-- Social media links: `/https?:\/\/(www\.)?(facebook|twitter|linkedin)\.com\/[^\s]+/g`
-
-### Increase Speed
-
-- Remove the **Wait** nodes (may trigger rate limits)
-- Increase batch size in **Loop Over Items**
-- Use a proxy service for the HTTP requests
-
-## Limitations
-
-- Google Maps HTML structure may change (requires workflow updates)
-- Some websites block scraping or don't display emails publicly
-- Rate limiting may occur with high volumes
-- Not all businesses list emails on their websites
-
-## Troubleshooting
-
-**No emails found:**
-- Check if the websites actually display emails publicly
-- Verify the regex pattern in **Extract Emails** node
-- Some sites use contact forms instead of email addresses
-
-**Workflow times out:**
-- Reduce the **Limit** value
-- Increase **Wait** time between requests
-- Process in smaller batches
-
-**Google Sheets not updating:**
-- Verify OAuth credentials are connected
-- Check sheet name and column headers match
-- Ensure the sheet isn't protected or read-only
-
-## Legal & Ethical Considerations
-
-- Respect robots.txt and website terms of service
-- Use scraped data responsibly and comply with GDPR/privacy laws
-- Don't spam or send unsolicited emails
-- Consider rate limiting to avoid overloading servers
-
-## Next Steps
-
-- Combine with the [Lead Funnel](../lead-funnel/) template to auto-enroll scraped leads
-- Add AI classification to score lead quality
-- Build a re-engagement sequence for cold outreach
-
-## Support
-
-Issues or questions? [Open an issue](https://github.com/ashariftikhar/automation-growth-stack/issues) or reach out on [LinkedIn](https://linkedin.com/in/ashariftikharofficial).
+Part of the **[Ashflow Automation Growth Stack](https://ashflow.site)**.
 
 ---
 
-**License:** MIT — Free for personal and commercial use.
+## ⚡ What It Does
+
+This workflow automates the B2B lead generation lifecycle for local and regional markets:
+1. Queries Google Maps for target vertical and geography (e.g., `calgary dentists`, `austin roofer`).
+2. Extracts clean canonical website URLs from the localized map index.
+3. Automatically strips search redirect wrappers and Google ecosystem domains.
+4. Dedupes domains to eliminate redundant network traffic.
+5. Traverses each target business website and executes multi-pattern regex extraction for public business contact emails.
+6. Filters invalid/empty outputs and batch-inserts pristine lead records into Google Sheets or your downstream CRM.
+
+```
+[Manual/Schedule Trigger]
+          │
+          ▼
+ [Scrape Google Maps] ────► [Extract URLs] ────► [Filter Google URLs] ────► [Remove Duplicates]
+                                                                                   │
+                                                                                   ▼
+ [Add to Google Sheets] ◄── [Dedupe Emails] ◄── [Extract Emails] ◄── [Scrape Site] ◄── [Loop / Limit]
+```
+
+---
+
+## 🎯 High-Impact Use Cases
+
+- **Agency & B2B Cold Outreach**: Fill pipeline with qualified local service business contacts.
+- **Directory & Marketplace Seeding**: Aggregate category data without paid Apify or SerpApi subscriptions.
+- **Account-Based Marketing (ABM)**: Locate local franchise branches and independent practices.
+- **Competitive Landscaping**: Map density and digital footprints across metro zones.
+
+---
+
+## 📊 Sample Output Schema
+
+A verified sample dataset generated by this workflow is provided in [`fixtures/sample-output.csv`](./fixtures/sample-output.csv):
+
+| Column | Type | Example | Description |
+|---|---|---|---|
+| `business_name` | string | Apex Dental Care | Name of the business entity |
+| `category` | string | Dentist | Primary category classified on Google Maps |
+| `city` | string | Calgary | Metro market scraped |
+| `website` | url | `https://apexdentalyyc.com` | Resolved official homepage |
+| `email` | string | `contact@apexdentalyyc.com` | Scraped B2B email address |
+| `phone` | string | `+1-403-555-0192` | Normalized business phone |
+| `google_maps_url`| url | `https://maps.google.com/?cid=...` | Direct link to Google Maps listing |
+| `scraped_at` | iso-8601 | `2026-10-15T14:22:10Z` | Timestamp of scrape |
+| `verification_status`| string | `verified` | Syntax and domain deliverability status |
+
+---
+
+## ⏱️ Setup Time & Requirements
+
+- **Setup Time**: ~10 minutes
+- **Skill Level**: Beginner to Intermediate
+
+| Component | Purpose | Requirement |
+|---|---|---|
+| **n8n** (v1.0+) | Workflow engine | Self-hosted (Docker/Cloud) or n8n Cloud |
+| **Google Sheets** | Output destination | Free Google account + OAuth2 credential |
+| **Node.js** (Optional) | Local validation | Node.js v18+ |
+
+---
+
+## 🛠️ Step-by-Step Import & Setup
+
+### Step 1: Import Workflow into n8n
+1. In your n8n workspace, navigate to **Workflows**.
+2. Click **Add workflow** (or the **`+`** icon) → Click the three dots **`⋮`** (top right) → **Import from File**.
+3. Select [`workflow.json`](./workflow.json) from this directory.
+4. The complete nodes graph will render instantly.
+
+### Step 2: Connect Google Sheets Credential
+1. Locate the **Add to Sheet (or whatever you want!)** node.
+2. Under **Credential to connect with**, select **Create New Credential** → **Google Sheets OAuth2 API**.
+3. Authorize your Google account.
+4. In your Google Drive, create a spreadsheet named `B2B Leads Intake` with header columns:
+   `business_name`, `category`, `city`, `website`, `email`, `phone`, `scraped_at`
+5. In n8n, choose your spreadsheet ID and target sheet name.
+
+### Step 3: Customize Search Target
+1. Open the **Scrape Google Maps** HTTP Request node.
+2. In the **URL** input, modify the search query parameter:
+   ```
+   https://www.google.com/maps/search/[CITY]+[BUSINESS_TYPE]
+   ```
+   *Examples:*
+   - `https://www.google.com/maps/search/miami+hvac+contractors`
+   - `https://www.google.com/maps/search/toronto+commercial+cleaning`
+   - `https://www.google.com/maps/search/london+digital+marketing+agencies`
+
+### Step 4: Configure Concurrency & Rate Limits
+1. Open the **Limit** node: Default is 10 items for testing. Set to `50` or `100` for production runs.
+2. The workflow includes 1-second **Wait** nodes to ensure courtesy scraping and avoid origin IP blocks.
+
+### Step 5: Test & Activate
+1. Click **Test workflow**.
+2. Observe execution flow across nodes.
+3. Verify new rows appearing in your Google Sheet.
+4. Toggle workflow to **Active** if scheduling with an n8n Cron Trigger.
+
+---
+
+## 🛡️ Best Practices & Deliverability
+
+- **Rate-Limiting**: Keep at least 1-2 seconds delay between external site requests.
+- **Headless Proxies**: For large-scale batch scraping (>500 leads/day), connect a rotating proxy in the HTTP Request node options (`Proxy` field).
+- **Compliance**: Respect `robots.txt` guidelines and ensure outreach complies with CAN-SPAM, CASL, and GDPR regulations.
+
+---
+
+## 🚀 Enterprise Customization & Custom Pipelines
+
+Need custom enrichment (Apollo, Hunter, LinkedIn verification) or direct CRM integration (HubSpot, Salesforce, GoHighLevel)?
+
+👉 **[Book a Strategy Audit with Ashflow](https://ashflow.site/book-audit)** — We build end-to-end autonomous outbound systems for scaling B2B teams.
+
+---
+
+## 📄 License
+
+MIT © [Ashflow](https://ashflow.site). Free for commercial and personal automation workflows.
